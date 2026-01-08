@@ -1,0 +1,63 @@
+
+
+services:
+  # Service 1: Database (MANDATORY NAME: database)
+  database:
+    image: postgres:15
+    container_name: database
+    environment:
+      POSTGRES_DB: saas_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432" # External:Internal
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Service 2: Backend API (MANDATORY NAME: backend)
+  backend:
+    build: ./backend
+    container_name: backend
+    ports:
+      - "5000:5000" # External:Internal
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: saas_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: supersecretkey_change_this_for_production_min_32_chars
+      FRONTEND_URL: http://frontend:3000
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+
+  # Service 3: Frontend (MANDATORY NAME: frontend)
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:3000" # External:Internal
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+      REACT_APP_API_URL: http://localhost:5000/api
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    # This command ensures Vite binds to 0.0.0.0 so it's accessible outside Docker
+    command: npm run dev -- --host 0.0.0.0 
+
+volumes:
+  db_data:
